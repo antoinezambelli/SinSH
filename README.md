@@ -1,2 +1,2 @@
 # SinSH
-Simple SSH wrapper for distributed clusters
+Simple Python SSH wrapper for distributed clusters
