@@ -396,7 +396,10 @@ class Cluster():
 
                 # tar files.
                 p_p = subprocess.Popen(
-                    ['tar', '-cf', '{}.tar'.format(idx), '-C', self.path_to_data + '/', '-T', '{}.txt'.format(idx)],
+                    [
+                        'tar', '-cf', '{}.tar'.format(idx), '-C', self.path_to_data + '/',
+                        '-T', '{}.txt'.format(idx)
+                    ],
                     cwd=self.path_to_data
                 ).wait()
 
@@ -490,7 +493,6 @@ class Cluster():
             to Master at path_to_res. Any nested directories are flattened.
         '''
 
-        # NOTE: this does not tar results before copying.
         for idx, node in enumerate(tqdm(self.nodes, desc='Collect results', ncols=100)):
             # Copy the /res directory over into /res/idx.
             node.copy_from(
@@ -500,10 +502,10 @@ class Cluster():
             )
 
             # Move files from inner directory to /res - note this flattens results.
-            file_list = glob.glob(self.path_to_res + '/**/*{}'.format(self.res_wc))
+            file_list = glob.glob(self.path_to_res + '/**/*')
             for fp in file_list:
                 shutil.move(fp, self.path_to_res + '/{}'.format(os.path.split(fp)[1]))
-            
+
             os.rmdir(self.path_to_res + '/{}'.format(idx))
 
         return self
