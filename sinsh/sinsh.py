@@ -338,6 +338,7 @@ class Cluster():
             node.rm('-r', self.path_to_res)
 
             node.mkdir(self.path_to_data)
+            node.mkdir(self.path_to_code)
             node.mkdir(self.path_to_res)
 
         return self
@@ -415,6 +416,7 @@ class Cluster():
                     [], 'tar', 'xf', self.path_to_data + '/{}.tar'.format(idx),
                     '-C', self.path_to_data
                 )
+                node.rm('-r', self.path_to_data + '/{}.tar'.format(idx))  # Cleanup tar on node.
 
                 # Cleanup .txt and .tar files on Master.
                 os.remove(self.path_to_master_data + '/{}.tar'.format(idx))
@@ -433,12 +435,12 @@ class Cluster():
             my_cluster.copy_code() will copy the code.
         '''
 
-        # Copy the code over to the Nodes - supports nested directories.
+        # Copy the code over to the Nodes - does not support nested directories.
         for node in tqdm(self.nodes, desc='Distribute code', ncols=100):
             node.copy_to(
                 '-rpq',
-                self.path_to_master_code,
-                os.path.split(self.path_to_code)[0]
+                self.path_to_master_code + '/*',
+                self.path_to_code
             )
         return self
 
