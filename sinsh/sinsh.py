@@ -1,6 +1,6 @@
-import csv
 import glob
 import os
+import pickle
 import shutil
 import subprocess
 import time
@@ -356,7 +356,7 @@ class Cluster():
             my_cluster.partition_data() will split and copy the data to the Nodes.
         '''
 
-        data_contents = glob.glob(self.path_to_data + '/*')
+        data_contents = glob.glob(self.path_to_master_data + '/*')
 
         if len(data_contents) == 1:
             # Get total lines in file.
@@ -376,7 +376,7 @@ class Cluster():
 
                 node.copy_to(
                     '-rpq',
-                    self.path_to_data + '/{}.csv'.format(idx),
+                    self.path_to_master_data + '/{}.csv'.format(idx),
                     self.path_to_data + '/{}.csv'.format(idx)
                 )
         else:
@@ -390,23 +390,23 @@ class Cluster():
                 node.data = data_chunked[idx]  # For future reference.
 
                 # Write node's data to a text file - for tar'ing.
-                with open('{}/{}.txt'.format(self.path_to_data, idx), 'w') as f:
+                with open('{}/{}.txt'.format(self.path_to_master_data, idx), 'w') as f:
                     for dat in data_chunked[idx]:
                         f.write('{}\n'.format(os.path.split(dat)[1]))
 
                 # tar files.
                 p_p = subprocess.Popen(
                     [
-                        'tar', '-cf', '{}.tar'.format(idx), '-C', self.path_to_data + '/',
+                        'tar', '-cf', '{}.tar'.format(idx), '-C', self.path_to_master_data + '/',
                         '-T', '{}.txt'.format(idx)
                     ],
-                    cwd=self.path_to_data
+                    cwd=self.path_to_master_data
                 ).wait()
 
                 # Copy tar file to the Node.
                 node.copy_to(
                     '-rpq',
-                    self.path_to_data + '/{}.tar'.format(idx),
+                    self.path_to_master_data + '/{}.tar'.format(idx),
                     self.path_to_data + '/{}.tar'.format(idx)
                 )
 
@@ -417,8 +417,8 @@ class Cluster():
                 )
 
                 # Cleanup .txt and .tar files on Master.
-                os.remove(self.path_to_data + '/{}.tar'.format(idx))
-                os.remove(self.path_to_data + '/{}.txt'.format(idx))
+                os.remove(self.path_to_master_data + '/{}.tar'.format(idx))
+                os.remove(self.path_to_master_data + '/{}.txt'.format(idx))
 
         return self
 
@@ -478,6 +478,8 @@ class Cluster():
         for node in self.nodes:
             out[node]['done'] = node.shell('find', self.path_to_res, '-name', res_wc)[0].split()
 
+        pickle.dump(out, open(self.path_to_master_res + '/progress.p', 'wb'))  # For external query.
+
         return out
 
     def copy_res(self):
@@ -493,32 +495,36 @@ class Cluster():
             to Master at path_to_res. Any nested directories are flattened.
         '''
 
+        os.remove(self.path_to_master_res + '/progress.p')  # Cleanup progress file.
+
         for idx, node in enumerate(tqdm(self.nodes, desc='Collect results', ncols=100)):
             # Copy the /res directory over into /res/idx.
             node.copy_from(
                 '-rpq',
                 self.path_to_res,
-                self.path_to_res + '/{}'.format(idx)
+                self.path_to_master_res + '/{}'.format(idx)
             )
 
             # Move files from inner directory to /res - note this flattens results.
-            file_list = glob.glob(self.path_to_res + '/**/*')
+            file_list = glob.glob(self.path_to_master_res + '{}/**/*'.format(idx))
             for fp in file_list:
-                shutil.move(fp, self.path_to_res + '/{}'.format(os.path.split(fp)[1]))
+                shutil.move(fp, self.path_to_master_res + '/{}'.format(os.path.split(fp)[1]))
 
-            os.rmdir(self.path_to_res + '/{}'.format(idx))
+            os.rmdir(self.path_to_master_res + '/{}'.format(idx))
 
         return self
 
-    def distribute(self, path_to_data, path_to_code, path_to_res,
-            exec_args, res_wc='*_res.p', blocking=False):
+    def distribute(self, path_to_master_data, path_to_master_res, path_to_data, path_to_code,
+            path_to_res, exec_args, res_wc='*_res.p', blocking=False):
         '''
         distribute(): convenience method to handle typical use-cases - makes all necessary internal
                       calls to other methods for a full batch-processing job.
         Inputs:
-            path_to_data - str - required: path to the data directory.
+            path_to_master_data - str - required: path to the master data directory.
+            path_to_master_res - str - required: path to the collected results directory on master.
+            path_to_data - str - required: path to the partitioned data directory on the node.
             path_to_code - str - required: path to the code directory.
-            path_to_res - str - required: path to the results directory.
+            path_to_res - str - required: path to the results directory on the node.
             exec_args - list - required: list of arguments for the Cluster.launch() method.
             res_wc - str - optional: filename pattern for the Cluster.check_status() method.
             blocking - bool - optional: setting to True will make the call blocking and display
@@ -532,6 +538,8 @@ class Cluster():
             ip_list = ['192.168.1.155', '192.168.1.156']
             my_clust = Cluster([Node('pi', ip) for ip in ip_list])
             my_clust.distribute(
+                '/home/pi/Desktop/master_data',
+                '/home/pi/Desktop/master_res',
                 '/home/pi/Desktop/cluster_data',
                 '/home/pi/Desktop/cluster_code',
                 '/home/pi/Desktop/cluster_res',
@@ -541,6 +549,8 @@ class Cluster():
             )
         '''
 
+        self.path_to_master_data = path_to_master_data
+        self.path_to_master_res = path_to_master_res
         self.path_to_data = path_to_data
         self.path_to_code = path_to_code
         self.path_to_res = path_to_res
