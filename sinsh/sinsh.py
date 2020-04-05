@@ -437,7 +437,7 @@ class Cluster():
         for node in tqdm(self.nodes, desc='Distribute code', ncols=100):
             node.copy_to(
                 '-rpq',
-                self.path_to_code,
+                self.path_to_master_code,
                 os.path.split(self.path_to_code)[0]
             )
         return self
@@ -514,14 +514,15 @@ class Cluster():
 
         return self
 
-    def distribute(self, path_to_master_data, path_to_master_res, path_to_data, path_to_code,
-            path_to_res, exec_args, res_wc='*_res.p', blocking=False):
+    def distribute(self, path_to_master_data, path_to_master_res, path_to_master_code,
+            path_to_data, path_to_code, path_to_res, exec_args, res_wc='*_res.p', blocking=False):
         '''
         distribute(): convenience method to handle typical use-cases - makes all necessary internal
                       calls to other methods for a full batch-processing job.
         Inputs:
             path_to_master_data - str - required: path to the master data directory.
             path_to_master_res - str - required: path to the collected results directory on master.
+            path_to_master_code - str - required: path to code to distribute to nodes.
             path_to_data - str - required: path to the partitioned data directory on the node.
             path_to_code - str - required: path to the code directory.
             path_to_res - str - required: path to the results directory on the node.
@@ -540,6 +541,7 @@ class Cluster():
             my_clust.distribute(
                 '/home/pi/Desktop/master_data',
                 '/home/pi/Desktop/master_res',
+                '/home/pi/Desktop/master_code',
                 '/home/pi/Desktop/cluster_data',
                 '/home/pi/Desktop/cluster_code',
                 '/home/pi/Desktop/cluster_res',
@@ -551,6 +553,7 @@ class Cluster():
 
         self.path_to_master_data = path_to_master_data
         self.path_to_master_res = path_to_master_res
+        self.path_to_master_code = path_to_master_code
         self.path_to_data = path_to_data
         self.path_to_code = path_to_code
         self.path_to_res = path_to_res
@@ -576,7 +579,7 @@ class Cluster():
                         len(res[node]['done']),
                         len(res[node]['todo']),
                         delta_t=time.time() - t_0,
-                        prefix=node.ip_addr + ':',
+                        prefix=node.ip_addr.ljust(max([len(n.ip_addr) for n in self.nodes])) + ':',
                         length=50,
                         fill='█'
                     )
