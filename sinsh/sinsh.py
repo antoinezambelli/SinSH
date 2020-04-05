@@ -93,7 +93,10 @@ class Node():
 
         cmd_str = cmd_str + list(args)  # Add any args that were passed in.
 
-        subprocess.run(cmd_str)
+        subprocess.run(
+            ' '.join(cmd_str) if any('*' in a for a in cmd_str) else cmd_str,
+            shell=any('*' in a for a in cmd_str)
+        )  # If passing a wildcard character, set Shell=True, run as string argument.
 
     def rm(self, *args):
         '''
