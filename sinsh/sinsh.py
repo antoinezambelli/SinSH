@@ -511,11 +511,11 @@ class Cluster():
             )
 
             # Move files from inner directory to /res - note this flattens results.
-            file_list = glob.glob(self.path_to_master_res + '{}/**/*'.format(idx))
+            file_list = glob.glob(self.path_to_master_res + '/{}/**/*'.format(idx), recursive=True)
             for fp in file_list:
                 shutil.move(fp, self.path_to_master_res + '/{}'.format(os.path.split(fp)[1]))
 
-            os.rmdir(self.path_to_master_res + '/{}'.format(idx))
+            shutil.rmtree(self.path_to_master_res + '/{}'.format(idx))  # Could have nested dirs.
 
         return self
 
