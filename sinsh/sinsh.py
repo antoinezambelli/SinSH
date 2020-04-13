@@ -362,7 +362,7 @@ class Cluster():
 
         data_contents = glob.glob(self.path_to_master_data + '/*')
 
-        if len(data_contents) == 1:
+        if len(data_contents) == 1 and any(f_ext in data_contents[0] for f_ext in ['.csv', '.tsv']):
             # Get total lines in file.
             with open(data_contents[0]) as f:
                 num_lines = sum(1 for line in f)
@@ -371,17 +371,23 @@ class Cluster():
             chunk_size = -(-num_lines // len(self.nodes))  # Ceil division.
 
             # Read the .csv in chunks and save as separate files.
-            for i, chunk in enumerate(pd.read_csv(data_contents[0], chunksize=chunk_size)):
-                chunk.to_csv('{}.csv'.format(i), index=False)
+            for i, chunk in enumerate(
+                pd.read_csv(data_contents[0], chunksize=chunk_size, sep='\t' if '.tsv' in data_contents[0] else ',')
+            ):
+                chunk.to_csv(
+                    '{}'.format(i) + ('.tsv' if '.tsv' in data_contents[0] else '.csv'),
+                    sep='\t' if '.tsv' in data_contents[0] else ',',
+                    index=False
+                )
 
             # Copy the files to Nodes.
             for idx, node in enumerate(self.nodes):
-                node.data = ['{}.csv'.format(idx)]
+                node.data = ['{}'.format(idx) + ('.tsv' if '.tsv' in data_contents[0] else '.csv')]
 
                 node.copy_to(
                     '-rpq',
-                    self.path_to_master_data + '/{}.csv'.format(idx),
-                    self.path_to_data + '/{}.csv'.format(idx)
+                    self.path_to_master_data + '/{}'.format(idx) + ('.tsv' if '.tsv' in data_contents[0] else '.csv'),
+                    self.path_to_data + '/{}'.format(idx) + ('.tsv' if '.tsv' in data_contents[0] else '.csv')
                 )
         else:
             # NOTE: this will error if fewer data chunks than there are nodes.
@@ -457,7 +463,10 @@ class Cluster():
         Usage:
             my_cluster.launch() will start the process on the Nodes.
         '''
-        for node in self.nodes:
+
+        for idx, node in enumerate(self.nodes):
+            # Replace wildcard entry with node index if desired - master must be 0 for pytorch DDP.
+            self.exec_args = [ele.replace('*idx*', str(idx)) for ele in self.exec_args]
             node.exec(*self.exec_args)
 
         return self
@@ -519,8 +528,8 @@ class Cluster():
 
         return self
 
-    def distribute(self, path_to_master_data, path_to_master_res, path_to_master_code,
-            path_to_data, path_to_code, path_to_res, exec_args, res_wc='*_res.p', blocking=False):
+    def distribute(self, path_to_master_data, path_to_master_res, path_to_master_code, path_to_data,
+            path_to_code, path_to_res, exec_args, res_wc='*_res.p', blocking=False):
         '''
         distribute(): convenience method to handle typical use-cases - makes all necessary internal
                       calls to other methods for a full batch-processing job.
